@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+  <meta name="description" content="A jumping dinosaur endless-runner game you can play in the browser, online or offline.">
+  <meta name="theme-color" content="#f7f7f7">
+  <title>Dino Runner</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main class="wrap">
+    <div class="offline-msg" aria-hidden="true">
+      <h1>Dino Runner</h1>
+      <p id="status">Press <kbd>Space</kbd> to play</p>
+    </div>
+
+    <div class="stage" id="stage">
+      <canvas id="game" aria-label="Dino Runner game. Press space or tap to jump." role="img"></canvas>
+    </div>
+
+    <ul class="help">
+      <li><kbd>Space</kbd> / <kbd>↑</kbd> / <kbd>Shift</kbd> jump (hold to jump higher)</li>
+      <li><kbd>↓</kbd> duck</li>
+      <li>Tap the game on touch screens</li>
+      <li><kbd>M</kbd> sound on/off</li>
+    </ul>
+  </main>
+
+  <script src="game.js"></script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', function () {
+        navigator.serviceWorker.register('sw.js').catch(function () {});
+      });
+    }
+  </script>
+</body>
+</html>

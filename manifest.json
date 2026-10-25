@@ -1,0 +1,14 @@
+{
+  "name": "Dino Runner",
+  "short_name": "Dino",
+  "description": "A jumping dinosaur endless-runner you can play online or offline.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "landscape",
+  "background_color": "#f7f7f7",
+  "theme_color": "#f7f7f7",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}
