@@ -219,14 +219,15 @@
     document.body.classList.toggle('night', on);
   }
 
-  function start() {
+  // withJump: Space / tap starts with a hop; the Start button just starts running.
+  function start(withJump) {
     if (state === 'running') return;
     if (state === 'over' && performance.now() - overAt < 400) return;
     reset();
     state = 'running';
     statusEl.textContent = 'Go!';
     updateControls();
-    jump();
+    if (withJump) jump();
   }
 
   // ---- Play / pause ----
@@ -255,7 +256,7 @@
   function togglePlay() {
     if (state === 'running') pause();
     else if (state === 'paused') resume();
-    else start();
+    else start(false);
   }
 
   function updateControls() {
@@ -559,7 +560,7 @@
   function pressJump() {
     if (state === 'paused') { resume(); return; }
     input.jump = true;
-    if (state !== 'running') start();
+    if (state !== 'running') start(true);
   }
 
   function releaseAll() { input.jump = false; input.duck = false; }
@@ -640,20 +641,51 @@
 
   // ---- Play / pause button ----
   if (playBtn) {
-    // Keep the button from stealing the touch as a jump or a zoom gesture.
-    playBtn.addEventListener('touchstart', function (e) { e.stopPropagation(); }, { passive: true });
+    // Touch: act on touchend directly rather than waiting for the browser's
+    // synthesized click, which some mobile browsers delay or drop (e.g. when
+    // the tap is slightly long or the page was just scrolled).
+    // preventDefault() stops that click from following and toggling twice.
+    var btnTouch = null;
+    playBtn.addEventListener('touchstart', function (e) {
+      btnTouch = e.changedTouches[0].identifier;
+      playBtn.classList.add('pressed');
+    }, { passive: true });
+    playBtn.addEventListener('touchend', function (e) {
+      var t = findTouch(e.changedTouches, btnTouch);
+      btnTouch = null;
+      playBtn.classList.remove('pressed');
+      if (!t) return;
+      e.preventDefault();
+      var r = playBtn.getBoundingClientRect();
+      // Ignore the tap if the finger slid off the button before lifting.
+      if (t.clientX < r.left || t.clientX > r.right || t.clientY < r.top || t.clientY > r.bottom) return;
+      togglePlay();
+    }, { passive: false });
+    playBtn.addEventListener('touchcancel', function () {
+      btnTouch = null;
+      playBtn.classList.remove('pressed');
+    });
+    // Mouse and keyboard (Enter / Space while focused).
     playBtn.addEventListener('click', function (e) {
       togglePlay();
-      // After a tap or click, drop focus so Space keeps jumping instead of
+      // After a mouse click, drop focus so Space keeps jumping instead of
       // re-activating the button. Keyboard users (detail === 0) keep focus.
       if (e.detail > 0) playBtn.blur();
     });
   }
 
   // Pause automatically when the player leaves, so the dino doesn't crash unseen.
-  window.addEventListener('blur', function () { releaseAll(); pause(); });
+  // On touch devices only page visibility is used: mobile browsers can fire a
+  // window blur for things like the address bar or a permission prompt, which
+  // would pause the game right after it starts.
+  if (!isTouch) window.addEventListener('blur', function () { releaseAll(); pause(); });
+  function leavePage() {
+    releaseAll();
+    pause();
+  }
+  window.addEventListener('pagehide', leavePage);
   document.addEventListener('visibilitychange', function () {
-    if (document.hidden) pause();
+    if (document.hidden) leavePage();
     last = performance.now();
     acc = 0;
   });
