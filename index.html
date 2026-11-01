@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no, viewport-fit=cover">
   <meta name="description" content="A jumping dinosaur endless-runner game you can play in the browser, online or offline.">
   <meta name="theme-color" content="#f7f7f7">
   <title>Dino Runner</title>
@@ -21,11 +21,19 @@
       <canvas id="game" aria-label="Dino Runner game. Press space or tap to jump." role="img"></canvas>
     </div>
 
+    <div class="controls">
+      <button type="button" class="play-btn" id="playPause" aria-label="Start game" aria-pressed="false">
+        <span class="play-icon" id="playIcon" aria-hidden="true">▶</span>
+        <span id="playLabel">Start</span>
+      </button>
+    </div>
+
     <ul class="help">
       <li><kbd>Space</kbd> / <kbd>↑</kbd> / <kbd>Shift</kbd> jump (hold to jump higher)</li>
       <li><kbd>↓</kbd> duck</li>
-      <li>Tap the game on touch screens</li>
+      <li><kbd>P</kbd> / <kbd>Esc</kbd> pause</li>
       <li><kbd>M</kbd> sound on/off</li>
+      <li>Touch: tap the game to jump, swipe down to duck</li>
     </ul>
   </main>
 
