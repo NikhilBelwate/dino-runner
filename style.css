@@ -80,7 +80,8 @@ body.night {
 }
 
 .play-btn:hover { background: var(--fg); color: var(--bg); }
-.play-btn:active { transform: scale(.96); }
+.play-btn:active,
+.play-btn.pressed { transform: scale(.96); }
 .play-btn:focus-visible { outline: 3px solid var(--muted); outline-offset: 3px; }
 .play-btn[data-state="running"] { border-style: dashed; }
 

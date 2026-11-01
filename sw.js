@@ -1,6 +1,6 @@
 // Caches the game so it can be played with no network connection.
-var CACHE = 'dino-runner-v2';
-var FILES = ['./', 'index.html', 'style.css', 'game.js', 'manifest.json', 'icon.svg'];
+var CACHE = 'dino-runner-v3';
+var FILES = ['./', 'index.html', 'style.css?v=3', 'game.js?v=3', 'manifest.json', 'icon.svg'];
 
 self.addEventListener('install', function (event) {
   event.waitUntil(caches.open(CACHE).then(function (cache) { return cache.addAll(FILES); }));
@@ -15,10 +15,21 @@ self.addEventListener('activate', function (event) {
 });
 
 // Network first so updates show up, falling back to the cache when offline.
+// cache: 'no-cache' makes the browser revalidate with the server instead of
+// reusing its HTTP cache, so a new index.html is never paired with an old
+// game.js right after a deploy.
+function fresh(request) {
+  // A navigation request can't be copied with options, so rebuild it from the URL.
+  if (request.mode === 'navigate') {
+    return new Request(request.url, { cache: 'no-cache', credentials: 'same-origin' });
+  }
+  return new Request(request, { cache: 'no-cache' });
+}
+
 self.addEventListener('fetch', function (event) {
   if (event.request.method !== 'GET') return;
   event.respondWith(
-    fetch(event.request).then(function (response) {
+    fetch(fresh(event.request)).then(function (response) {
       var copy = response.clone();
       caches.open(CACHE).then(function (cache) { cache.put(event.request, copy); });
       return response;
