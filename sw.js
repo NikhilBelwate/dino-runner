@@ -1,5 +1,5 @@
 // Caches the game so it can be played with no network connection.
-var CACHE = 'dino-runner-v1';
+var CACHE = 'dino-runner-v2';
 var FILES = ['./', 'index.html', 'style.css', 'game.js', 'manifest.json', 'icon.svg'];
 
 self.addEventListener('install', function (event) {

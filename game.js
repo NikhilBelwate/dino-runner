@@ -127,6 +127,12 @@
   var canvas = document.getElementById('game');
   var stage = document.getElementById('stage');
   var statusEl = document.getElementById('status');
+  var playBtn = document.getElementById('playPause');
+  var playIcon = document.getElementById('playIcon');
+  var playLabel = document.getElementById('playLabel');
+  var isTouch = ('ontouchstart' in window) ||
+    (window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
+  if (isTouch) statusEl.textContent = 'Tap the game or Start to play';
   var ctx = canvas.getContext('2d');
 
   function resize() {
@@ -177,7 +183,7 @@
   };
 
   // ---- Game state ----
-  var state;        // 'ready' | 'running' | 'over'
+  var state;        // 'ready' | 'running' | 'paused' | 'over'
   var dino, obstacles, clouds, groundBumps, speed, distance, score, highScore;
   var spawnGap, frame, night, flashUntil, lastMilestone, overAt;
   var input = { jump: false, duck: false };
@@ -219,7 +225,51 @@
     reset();
     state = 'running';
     statusEl.textContent = 'Go!';
+    updateControls();
     jump();
+  }
+
+  // ---- Play / pause ----
+  function pause() {
+    if (state !== 'running') return;
+    state = 'paused';
+    input.jump = false;
+    input.duck = false;
+    statusEl.textContent = isTouch
+      ? 'Paused. Tap the game or Resume to continue'
+      : 'Paused. Press P or Space to continue';
+    updateControls();
+  }
+
+  function resume() {
+    if (state !== 'paused') return;
+    state = 'running';
+    // Restart the clock so the time spent paused is not simulated at once.
+    last = performance.now();
+    acc = 0;
+    statusEl.textContent = 'Go!';
+    updateControls();
+  }
+
+  // One button that starts, pauses, resumes or restarts depending on the state.
+  function togglePlay() {
+    if (state === 'running') pause();
+    else if (state === 'paused') resume();
+    else start();
+  }
+
+  function updateControls() {
+    if (!playBtn) return;
+    var label, icon;
+    if (state === 'running') { label = 'Pause'; icon = '\u275A\u275A'; }
+    else if (state === 'paused') { label = 'Resume'; icon = '\u25B6'; }
+    else if (state === 'over') { label = 'Restart'; icon = '\u21BB'; }
+    else { label = 'Start'; icon = '\u25B6'; }
+    playLabel.textContent = label;
+    playIcon.textContent = icon;
+    playBtn.setAttribute('aria-label', label + ' game');
+    playBtn.setAttribute('aria-pressed', state === 'paused' ? 'true' : 'false');
+    playBtn.dataset.state = state;
   }
 
   function jump() {
@@ -239,7 +289,10 @@
       highScore = score;
       store(HI_KEY, String(highScore));
     }
-    statusEl.textContent = 'Game over. Press Space or tap to play again';
+    statusEl.textContent = isTouch
+      ? 'Game over. Tap the game or Restart to play again'
+      : 'Game over. Press Space or tap to play again';
+    updateControls();
     if (navigator.vibrate) { try { navigator.vibrate(150); } catch (e) {} }
   }
 
@@ -456,7 +509,15 @@
 
     if (state === 'ready') {
       ctx.textAlign = 'center';
-      ctx.fillText('PRESS SPACE OR TAP TO START', W / 2, 60);
+      ctx.fillText(isTouch ? 'TAP TO START' : 'PRESS SPACE OR TAP TO START', W / 2, 60);
+    }
+
+    if (state === 'paused') {
+      ctx.textAlign = 'center';
+      ctx.font = 'bold 14px "Courier New", monospace';
+      ctx.fillText('P A U S E D', W / 2, 45);
+      ctx.font = '12px "Courier New", monospace';
+      ctx.fillText(isTouch ? 'TAP TO RESUME' : 'PRESS P OR SPACE TO RESUME', W / 2, 68);
     }
 
     if (state === 'over') {
@@ -490,14 +551,18 @@
     requestAnimationFrame(loop);
   }
 
-  // ---- Input ----
+  // ---- Input: keyboard ----
   var JUMP_KEYS = { Space: 1, ArrowUp: 1, ShiftLeft: 1, ShiftRight: 1, KeyW: 1 };
   var DUCK_KEYS = { ArrowDown: 1, KeyS: 1 };
+  var PAUSE_KEYS = { KeyP: 1, Escape: 1 };
 
   function pressJump() {
+    if (state === 'paused') { resume(); return; }
     input.jump = true;
     if (state !== 'running') start();
   }
+
+  function releaseAll() { input.jump = false; input.duck = false; }
 
   document.addEventListener('keydown', function (e) {
     if (JUMP_KEYS[e.code]) {
@@ -505,7 +570,11 @@
       if (!e.repeat || state === 'running') pressJump();
     } else if (DUCK_KEYS[e.code]) {
       e.preventDefault();
-      input.duck = true;
+      if (state === 'running') input.duck = true;
+    } else if (PAUSE_KEYS[e.code]) {
+      if (e.repeat) return;
+      if (state === 'running') pause();
+      else if (state === 'paused') resume();
     } else if (e.code === 'KeyM') {
       muted = !muted;
       store(MUTE_KEY, muted ? '1' : '0');
@@ -517,21 +586,81 @@
     if (DUCK_KEYS[e.code]) input.duck = false;
   });
 
-  stage.addEventListener('pointerdown', function (e) {
+  // ---- Input: touch screens ----
+  // Tap = jump (hold for a higher jump), swipe down = duck / fast-fall.
+  // Listeners are non-passive so preventDefault() can stop scrolling,
+  // double-tap zoom and the emulated mouse events that follow a touch.
+  var SWIPE_DUCK_PX = 24;
+  var touchId = null;
+  var touchStartY = 0;
+
+  function findTouch(list, id) {
+    for (var i = 0; i < list.length; i++) if (list[i].identifier === id) return list[i];
+    return null;
+  }
+
+  stage.addEventListener('touchstart', function (e) {
+    e.preventDefault();
+    if (touchId !== null) return;          // ignore extra fingers
+    var t = e.changedTouches[0];
+    touchId = t.identifier;
+    touchStartY = t.clientY;
+    pressJump();
+  }, { passive: false });
+
+  stage.addEventListener('touchmove', function (e) {
+    e.preventDefault();
+    var t = findTouch(e.changedTouches, touchId);
+    if (!t || state !== 'running') return;
+    if (t.clientY - touchStartY > SWIPE_DUCK_PX) {
+      input.jump = false;                  // a swipe down cancels the held jump
+      input.duck = true;
+    }
+  }, { passive: false });
+
+  function endTouch(e) {
+    if (touchId === null || !findTouch(e.changedTouches, touchId)) return;
+    e.preventDefault();
+    touchId = null;
+    releaseAll();
+  }
+  stage.addEventListener('touchend', endTouch, { passive: false });
+  stage.addEventListener('touchcancel', endTouch, { passive: false });
+
+  // ---- Input: mouse (desktop click to jump) ----
+  stage.addEventListener('mousedown', function (e) {
+    if (e.button !== 0) return;
     e.preventDefault();
     pressJump();
   });
-  window.addEventListener('pointerup', function () { input.jump = false; });
-  window.addEventListener('blur', function () { input.jump = false; input.duck = false; });
+  window.addEventListener('mouseup', function () { input.jump = false; });
 
-  // Pause when the tab is hidden so the dino doesn't crash unseen.
+  // Long-press would otherwise open the context menu on some phones.
+  stage.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+
+  // ---- Play / pause button ----
+  if (playBtn) {
+    // Keep the button from stealing the touch as a jump or a zoom gesture.
+    playBtn.addEventListener('touchstart', function (e) { e.stopPropagation(); }, { passive: true });
+    playBtn.addEventListener('click', function (e) {
+      togglePlay();
+      // After a tap or click, drop focus so Space keeps jumping instead of
+      // re-activating the button. Keyboard users (detail === 0) keep focus.
+      if (e.detail > 0) playBtn.blur();
+    });
+  }
+
+  // Pause automatically when the player leaves, so the dino doesn't crash unseen.
+  window.addEventListener('blur', function () { releaseAll(); pause(); });
   document.addEventListener('visibilitychange', function () {
+    if (document.hidden) pause();
     last = performance.now();
     acc = 0;
   });
 
   state = 'ready';
   reset();
+  updateControls();
   requestAnimationFrame(loop);
 
   // Exposed for automated tests only.
@@ -539,6 +668,7 @@
     get state() { return state; },
     get score() { return score; },
     get dino() { return dino; },
-    get obstacles() { return obstacles; }
+    get obstacles() { return obstacles; },
+    get input() { return input; }
   };
 })();
